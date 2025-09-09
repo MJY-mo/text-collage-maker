@@ -1,0 +1,992 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>切り抜き文字風コラージュメーカー</title>
+    <link rel="icon" href="favicon12.png">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>✂️</text></svg>">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=BIZ+UDPGothic&family=Dela+Gothic+One&family=DotGothic16&family=Hina+Mincho&family=Kaisei+Decol&family=Kaisei+Opti&family=Kiwi+Maru&family=Kosugi+Maru&family=M+PLUS+Rounded+1c:wght@400;700&family=Mochiy+Pop+One&family=Noto+Sans+JP:wght@400;700&family=Potta+One&family=RocknRoll+One&family=Sawarabi+Gothic&family=Shippori+Mincho&family=Yuji+Syuku&family=Yusei+Magic&family=Zen+Kaku+Gothic+New:wght@400;700&family=Klee+One&family=Stick&family=Rampart+One&family=Train+One&family=Zen+Maru+Gothic&family=Yomogi&display=swap" rel="stylesheet">
+    <style>
+        /* カスタムスタイル */
+        body {
+            font-family: 'Noto Sans JP', sans-serif;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+        .accordion-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease-out;
+            background-color: #f9fafb; /* bg-gray-50 */
+            border-radius: 0 0 0.375rem 0.375rem; /* rounded-b-md */
+        }
+        .drop-area {
+            border: 2px dashed #ccc;
+            transition: border-color 0.3s, background-color 0.3s;
+        }
+        .drop-area.dragover {
+            border-color: #4f46e5; /* indigo-600 */
+            background-color: #e0e7ff; /* indigo-100 */
+        }
+        .btn {
+            transition: all 0.2s ease-in-out;
+        }
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        .btn-gray.active-purple { background-color: #8b5cf6; /* violet-500 */ }
+        .btn-gray.active-green { background-color: #22c55e; /* green-500 */ }
+        
+        /* カラーピッカーのスタイル */
+        .color-picker-wrapper {
+            position: relative;
+            width: 36px;
+            height: 36px;
+        }
+        input[type="color"] {
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            appearance: none;
+            width: 36px;
+            height: 36px;
+            padding: 0;
+            border: 1px solid #d1d5db; /* gray-300 */
+            border-radius: 0.375rem; /* rounded-md */
+            cursor: pointer;
+        }
+        input[type="color"]::-webkit-color-swatch {
+            border: none;
+            border-radius: 0.375rem; /* rounded-md */
+        }
+        .color-picker-wrapper.is-disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+        .color-picker-wrapper.is-disabled input[type="color"] {
+            cursor: not-allowed;
+        }
+        .color-picker-wrapper.is-disabled::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 10%;
+            width: 80%;
+            height: 2px;
+            background-color: rgba(220, 38, 38, 0.6); /* red-600 with opacity */
+            transform: translateY(-50%) rotate(-45deg);
+            pointer-events: none;
+            border-radius: 1px;
+        }
+        .range-value {
+            min-width: 2.5rem;
+            text-align: right;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800 flex flex-col h-screen">
+
+    <!-- 上部パネル -->
+    <header class="bg-white shadow-md p-2 flex items-center justify-between flex-shrink-0">
+        <h1 class="text-lg font-bold text-gray-700" data-lang="app-title">切り抜き文字風コラージュメーカー</h1>
+        <div class="flex items-center space-x-2">
+            <button id="fullscreen-btn" title="全画面表示" class="btn btn-gray bg-gray-500 text-white px-3 py-1.5 rounded-md text-sm font-semibold"><i class="fas fa-expand"></i></button>
+            <button id="btn-image-output" class="btn btn-gray bg-gray-500 text-white px-3 py-1.5 rounded-md text-sm font-semibold" data-lang="btn-image-output">画像出力</button>
+            <button id="btn-help" class="btn btn-gray bg-gray-500 text-white px-3 py-1.5 rounded-md text-sm font-semibold" data-lang="btn-help">操作説明</button>
+            <span class="text-gray-300">|</span>
+            <button id="btn-save-settings" class="btn btn-gray bg-gray-500 text-white px-3 py-1.5 rounded-md text-sm font-semibold" data-lang="btn-save">保存</button>
+            <button id="btn-load-settings" class="btn btn-gray bg-gray-500 text-white px-3 py-1.5 rounded-md text-sm font-semibold" data-lang="btn-load">呼出</button>
+            <input type="file" id="settings-file-input" class="hidden" accept=".json">
+        </div>
+    </header>
+
+    <!-- メインコンテンツ -->
+    <div class="flex-grow flex p-4 gap-4 overflow-hidden">
+
+        <!-- 左パネル -->
+        <div class="w-full md:w-1/3 max-w-lg flex-shrink-0 overflow-y-auto bg-white p-4 rounded-lg shadow-lg">
+            
+            <!-- 設定パネル (デフォルト) -->
+            <div id="settings-panel">
+                <div id="text-drop-area" class="drop-area w-full h-24 rounded-lg flex items-center justify-center text-center text-gray-500 mb-1 cursor-pointer p-2">
+                    <span data-lang="text-drop-area">テキストファイル(.txt)をここにドロップ<br>またはクリックして選択<br>(先頭400文字まで)</span>
+                </div>
+                <button id="delete-text-btn" class="text-xs text-red-500 hover:text-red-700 w-full text-right mb-2 hidden" data-lang="delete-text">テキストを削除</button>
+                <input type="file" id="text-file-input" class="hidden" accept=".txt">
+                <button id="generate-btn" class="btn bg-indigo-600 text-white w-full py-2 rounded-md font-bold hover:bg-indigo-700" data-lang="generate-btn">作成</button>
+                
+                <!-- アコーディオン -->
+                <div class="space-y-2 mt-4">
+                    <!-- フィールド設定 -->
+                    <div>
+                        <button class="accordion-toggle w-full text-left font-semibold p-2 bg-gray-200 rounded-md hover:bg-gray-300" data-target="#field-settings">
+                            <span data-lang="accordion-field">フィールド設定</span>
+                        </button>
+                        <div id="field-settings" class="accordion-content">
+                            <div class="p-4 space-y-3">
+                                <div>
+                                    <label class="block text-sm font-medium" data-lang="canvas-size">画面サイズ</label>
+                                    <div class="flex gap-2 mt-1">
+                                        <input type="number" id="canvas-width" value="800" class="w-full p-1 border rounded-md realtime-update save-state">
+                                        <span class="self-center">x</span>
+                                        <input type="number" id="canvas-height" value="600" class="w-full p-1 border rounded-md realtime-update save-state">
+                                    </div>
+                                </div>
+                                <div class="setting-group">
+                                    <label class="block text-sm font-medium" data-lang="bg-color">背景色</label>
+                                    <div class="flex items-center justify-between gap-4">
+                                        <input type="color" id="bg-color" value="#ffffff" class="w-24 h-8 border rounded-md realtime-update save-state">
+                                        <label class="flex items-center text-sm flex-grow">
+                                            <input type="checkbox" id="transparent-bg" class="mr-2 save-state" checked>
+                                            <span data-lang="transparent-bg">背景を透過 (PNG出力時)</span>
+                                        </label>
+                                    </div>
+                                </div>
+                                <div>
+                                    <div id="bg-image-drop-area" class="drop-area w-full h-20 rounded-lg flex items-center justify-center text-center text-gray-500 mt-2 mb-1 cursor-pointer p-2">
+                                        <span data-lang="bg-image-drop-area">背景画像をドロップ</span>
+                                    </div>
+                                    <button id="delete-bg-image-btn" class="text-xs text-red-500 hover:text-red-700 w-full text-right hidden" data-lang="delete-bg-image">背景画像を削除</button>
+                                    <input type="file" id="bg-image-input" class="hidden" accept="image/*">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- レイアウト設定 -->
+                    <div>
+                        <button class="accordion-toggle w-full text-left font-semibold p-2 bg-gray-200 rounded-md hover:bg-gray-300" data-target="#layout-settings">
+                           <span data-lang="accordion-layout">レイアウト設定</span>
+                        </button>
+                        <div id="layout-settings" class="accordion-content">
+                            <div class="p-4 space-y-4">
+                                <div>
+                                    <label class="block text-sm font-medium" data-lang="layout-direction">配置方向</label>
+                                     <div class="flex justify-around text-sm mt-1">
+                                        <label><input type="radio" name="layout-direction" value="horizontal" checked class="save-state"> <span data-lang="direction-horizontal">横書き</span></label>
+                                        <label><input type="radio" name="layout-direction" value="vertical" class="save-state"> <span data-lang="direction-vertical">縦書き</span></label>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium" data-lang="character-spacing">文字の間隔</label>
+                                    <div class="flex items-center gap-2">
+                                        <input type="range" id="character-spacing" min="-10" max="50" value="5" class="w-full mt-1 save-state">
+                                        <span class="range-value text-sm"><span id="character-spacing-val">5</span>px</span>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium" data-lang="line-spacing">行間</label>
+                                    <div class="flex items-center gap-2">
+                                        <input type="range" id="line-spacing" min="0" max="100" value="10" class="w-full mt-1 save-state">
+                                        <span class="range-value text-sm"><span id="line-spacing-val">10</span>px</span>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium" data-lang="position-jitter">文字のズレ幅</label>
+                                    <div class="flex items-center gap-2">
+                                        <input type="range" id="position-jitter" min="0" max="50" value="5" class="w-full mt-1 save-state">
+                                        <span class="range-value text-sm"><span id="position-jitter-val">5</span>px</span>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium" data-lang="rotation-angle">文字の回転</label>
+                                    <div class="flex items-center gap-2">
+                                        <input type="range" id="rotation-angle" min="0" max="45" value="10" class="w-full mt-1 save-state">
+                                        <span class="range-value text-sm">±<span id="rotation-angle-val">10</span>°</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 文字の装飾設定 -->
+                    <div>
+                        <button class="accordion-toggle w-full text-left font-semibold p-2 bg-gray-200 rounded-md hover:bg-gray-300" data-target="#random-settings">
+                           <span data-lang="accordion-random">文字の装飾設定</span>
+                        </button>
+                        <div id="random-settings" class="accordion-content">
+                            <div class="p-4 space-y-4">
+                                <div>
+                                    <label class="block text-sm font-medium" data-lang="font-size">フォントサイズ (最小 - 最大)</label>
+                                    <div class="flex gap-2 mt-1 items-center">
+                                        <span id="font-size-min-val" class="text-xs w-8 text-center">16</span>
+                                        <input type="range" id="font-size-min" min="8" max="150" value="16" class="w-full save-state">
+                                        <input type="range" id="font-size-max" min="8" max="150" value="48" class="w-full save-state">
+                                        <span id="font-size-max-val" class="text-xs w-8 text-center">48</span>
+                                    </div>
+                                </div>
+                                
+                                <!-- 文字色など -->
+                                <div class="setting-group pt-3 border-t mt-3">
+                                    <label class="block text-sm font-medium" data-lang="font-color">文字色</label>
+                                    <div class="flex gap-4 text-sm mt-1 items-center">
+                                        <label><input type="radio" name="font-color-mode" value="random" checked class="save-state"> <span data-lang="mode-random">ランダム</span></label>
+                                        <label class="flex items-center">
+                                            <input type="radio" name="font-color-mode" value="specify" class="save-state"> 
+                                            <span class="ml-1" data-lang="mode-specify">指定</span>
+                                            <input type="number" id="font-color-count" value="1" min="1" max="7" class="w-12 ml-2 p-0.5 border rounded-md text-center specify-control save-state" style="display: none;">
+                                        </label>
+                                    </div>
+                                    <div id="font-color-pickers" class="flex gap-2 mt-2 flex-wrap"></div>
+                                </div>
+
+                                <div class="space-y-2 text-sm">
+                                    <div class="flex items-center justify-between">
+                                        <span data-lang="font-bold">太字</span>
+                                        <div class="flex gap-3"><label class="flex items-center"><input type="radio" name="font-bold-mode" value="random" checked class="save-state"> <span class="ml-1" data-lang="mode-random">ランダム</span></label><label class="flex items-center"><input type="radio" name="font-bold-mode" value="on" class="save-state"> <span class="ml-1">On</span></label><label class="flex items-center"><input type="radio" name="font-bold-mode" value="off" class="save-state"> <span class="ml-1">Off</span></label></div>
+                                    </div>
+                                    <div class="flex items-center justify-between">
+                                        <span data-lang="font-italic">斜体</span>
+                                        <div class="flex gap-3"><label class="flex items-center"><input type="radio" name="font-italic-mode" value="random" checked class="save-state"> <span class="ml-1" data-lang="mode-random">ランダム</span></label><label class="flex items-center"><input type="radio" name="font-italic-mode" value="on" class="save-state"> <span class="ml-1">On</span></label><label class="flex items-center"><input type="radio" name="font-italic-mode" value="off" class="save-state"> <span class="ml-1">Off</span></label></div>
+                                    </div>
+                                    <div class="flex items-center justify-between">
+                                        <span data-lang="font-shadow">影</span>
+                                        <div class="flex gap-3"><label class="flex items-center"><input type="radio" name="font-shadow-mode" value="random" checked class="save-state"> <span class="ml-1" data-lang="mode-random">ランダム</span></label><label class="flex items-center"><input type="radio" name="font-shadow-mode" value="on" class="save-state"> <span class="ml-1">On</span></label><label class="flex items-center"><input type="radio" name="font-shadow-mode" value="off" class="save-state"> <span class="ml-1">Off</span></label></div>
+                                    </div>
+                                    <div class="flex items-center justify-between">
+                                        <span data-lang="font-stroke">縁取り</span>
+                                        <div class="flex gap-3"><label class="flex items-center"><input type="radio" name="font-stroke-mode" value="random" checked class="save-state"> <span class="ml-1" data-lang="mode-random">ランダム</span></label><label class="flex items-center"><input type="radio" name="font-stroke-mode" value="on" class="save-state"> <span class="ml-1">On</span></label><label class="flex items-center"><input type="radio" name="font-stroke-mode" value="off" class="save-state"> <span class="ml-1">Off</span></label></div>
+                                    </div>
+                                </div>
+                                
+                                <div class="setting-group">
+                                    <label class="block text-sm font-medium" data-lang="font-stroke-color">縁取りの色</label>
+                                     <div class="flex gap-4 text-sm mt-1 items-center">
+                                        <label><input type="radio" name="font-stroke-color-mode" value="random" checked class="save-state"> <span data-lang="mode-random">ランダム</span></label>
+                                        <label class="flex items-center">
+                                            <input type="radio" name="font-stroke-color-mode" value="specify" class="save-state">
+                                            <span class="ml-1" data-lang="mode-specify">指定</span>
+                                            <input type="number" id="font-stroke-color-count" value="1" min="1" max="7" class="w-12 ml-2 p-0.5 border rounded-md text-center specify-control save-state" style="display: none;">
+                                        </label>
+                                    </div>
+                                    <div id="font-stroke-color-pickers" class="flex gap-2 mt-2 flex-wrap"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- フォント設定 -->
+                    <div>
+                        <button class="accordion-toggle w-full text-left font-semibold p-2 bg-gray-200 rounded-md hover:bg-gray-300" data-target="#font-settings">
+                           <span data-lang="accordion-font">フォント設定</span>
+                        </button>
+                        <div id="font-settings" class="accordion-content">
+                           <div class="p-4 space-y-2">
+                                <div class="flex gap-2">
+                                    <button id="font-select-all" class="btn bg-gray-200 text-gray-700 text-xs py-1 px-2 rounded-md w-full">全て選択</button>
+                                    <button id="font-deselect-all" class="btn bg-gray-200 text-gray-700 text-xs py-1 px-2 rounded-md w-full">全て解除</button>
+                                </div>
+                                <div id="font-selection-list" class="mt-2 max-h-[36rem] overflow-y-auto pr-2"></div>
+                           </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 画像出力パネル (非表示) -->
+            <div id="image-output-panel" class="hidden">
+                 <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-lg font-bold" data-lang="panel-title-output">画像出力</h2>
+                    <button class="panel-back-btn btn text-sm text-indigo-600 border border-gray-300 px-2 py-1 rounded-md hover:bg-gray-100" data-lang="btn-back">戻る</button>
+                </div>
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium" data-lang="output-format">フォーマット</label>
+                        <select id="output-format" class="w-full p-2 border rounded-md mt-1">
+                            <option value="png">PNG</option>
+                            <option value="jpeg">JPEG</option>
+                        </select>
+                    </div>
+                    <button id="download-btn" class="btn bg-indigo-600 text-white w-full py-2 rounded-md font-bold hover:bg-indigo-700" data-lang="btn-download">ダウンロード</button>
+                </div>
+            </div>
+
+            <!-- 操作説明パネル (非表示) -->
+            <div id="help-panel" class="hidden">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-lg font-bold" data-lang="panel-title-help">操作説明</h2>
+                    <button class="panel-back-btn btn text-sm text-indigo-600 border border-gray-300 px-2 py-1 rounded-md hover:bg-gray-100" data-lang="btn-back">戻る</button>
+                </div>
+                 <div class="text-sm space-y-3" data-lang-html="help-content">
+                 </div>
+            </div>
+        </div>
+
+        <!-- 右パネル (キャンバス) -->
+        <div id="canvas-container" class="flex-grow bg-white rounded-lg shadow-lg flex items-center justify-center p-2 overflow-auto relative">
+            <canvas id="main-canvas" class="border"></canvas>
+        </div>
+    </div>
+
+    <script>
+        // --- 翻訳データ (外に出してアクセス可能にする) ---
+        const translations = {
+            'ja': {
+                'app-title': '切り抜き文字風コラージュメーカー', 'btn-image-output': '画像出力', 'btn-help': '操作説明',
+                'btn-save': '保存', 'btn-load': '呼出',
+                'text-drop-area': 'テキストファイル(.txt)をここにドロップ<br>またはクリックして選択<br>(先頭400文字まで)',
+                'delete-text': 'テキストを削除', 'delete-bg-image': '背景画像を削除', 'generate-btn': '作成',
+                'accordion-field': 'フィールド設定', 'accordion-font': 'フォント設定', 'canvas-size': '画面サイズ',
+                'bg-color': '背景色', 'transparent-bg': '背景を透過 (PNG出力時)', 'bg-image-drop-area': '背景画像をドロップ',
+                'accordion-layout': 'レイアウト設定', 'layout-direction': '配置方向', 'direction-horizontal': '横書き', 'direction-vertical': '縦書き',
+                'character-spacing': '文字の間隔', 'line-spacing': '行間', 'position-jitter': '文字のズレ幅', 'rotation-angle': '文字の回転',
+                'accordion-random': '文字の装飾設定', 'mode-specify': '指定', 'mode-random': 'ランダム',
+                'font-color': '文字色', 'font-bold': '太字', 'font-italic': '斜体',
+                'font-shadow': '影', 'font-stroke': '縁取り', 'font-stroke-color': '縁取りの色',
+                'font-size': 'フォントサイズ (最小 - 最大)',
+                'panel-title-output': '画像出力', 'btn-back': '戻る',
+                'output-format': 'フォーマット', 'btn-download': 'ダウンロード', 'panel-title-help': '操作説明',
+                'initial-text': 'ここに画像が生成されます',
+                'fullscreenEnter': "全画面表示",
+                'fullscreenExit': "全画面解除",
+                'help-content': `
+                    <p><b>1. テキストを用意する</b></p>
+                    <p>左上のエリアにテキストファイル (.txt) をドラッグ＆ドロップします。文章は先頭400文字までが処理対象となり、スペースは無視されます。テキスト内の改行はレイアウトに反映されます。</p>
+                    <p><b>2. 設定を調整する</b></p>
+                    <p>各項目を開き、背景、レイアウト（配置方向、ズレ幅、回転など）、文字のスタイルを自由に調整できます。</p>
+                    <p><b>3. 作成ボタンを押す</b></p>
+                    <p>「作成」ボタンで、設定に基づいて文字が配置された画像が生成されます。</p>
+                    <p><b>4. 保存・呼出</b></p>
+                    <p>「保存」で現在の設定をファイルとして保存し、「呼出」でそのファイルを読み込んで設定を復元できます。</p>
+                    <p><b>5. 画像を出力する</b></p>
+                    <p>「画像出力」ボタンでパネルを切り替え、好きなフォーマットで画像をダウンロードできます。</p>
+                `
+            }
+        };
+        
+        // --- 全画面表示 ---
+        function toggleFullscreen() {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(err => {
+                    console.error(`Error attempting to enable full-screen mode: ${err.message} (${err.name})`);
+                });
+            } else {
+                if (document.exitFullscreen) {
+                    document.exitFullscreen();
+                }
+            }
+        }
+
+        function updateFullscreenButton() {
+            const btn = document.getElementById('fullscreen-btn');
+            if(!btn) return;
+            const icon = btn.querySelector('i');
+            const lang = document.documentElement.lang || 'ja';
+            const enterText = translations[lang] ? translations[lang]['fullscreenEnter'] : 'Fullscreen';
+            const exitText = translations[lang] ? translations[lang]['fullscreenExit'] : 'Exit Fullscreen';
+
+            if (document.fullscreenElement) {
+                icon.classList.remove('fa-expand');
+                icon.classList.add('fa-compress');
+                btn.title = exitText;
+            } else {
+                icon.classList.remove('fa-compress');
+                icon.classList.add('fa-expand');
+                btn.title = enterText;
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            // --- DOM要素の取得 ---
+            const canvas = document.getElementById('main-canvas');
+            const ctx = canvas.getContext('2d');
+            const textDropArea = document.getElementById('text-drop-area');
+            const textFileInput = document.getElementById('text-file-input');
+            const deleteTextBtn = document.getElementById('delete-text-btn');
+            const bgImageDropArea = document.getElementById('bg-image-drop-area');
+            const bgImageInput = document.getElementById('bg-image-input');
+            const deleteBgImageBtn = document.getElementById('delete-bg-image-btn');
+            const generateBtn = document.getElementById('generate-btn');
+            const downloadBtn = document.getElementById('download-btn');
+            const saveSettingsBtn = document.getElementById('btn-save-settings');
+            const loadSettingsBtn = document.getElementById('btn-load-settings');
+            const settingsFileInput = document.getElementById('settings-file-input');
+            const fontSelectAllBtn = document.getElementById('font-select-all');
+            const fontDeselectAllBtn = document.getElementById('font-deselect-all');
+            const fullscreenBtn = document.getElementById('fullscreen-btn');
+            
+            // --- 状態管理 ---
+            let originalText = '';
+            let bgImage = null;
+            let lastGeneratedLayout = [];
+            const fontList = [
+                'Noto Sans JP', 'Zen Kaku Gothic New', 'M PLUS Rounded 1c', 'BIZ UDPGothic', 
+                'Kosugi Maru', 'Sawarabi Gothic', 'Shippori Mincho', 'Hina Mincho', 'Yuji Syuku', 
+                'Kaisei Opti', 'Kaisei Decol', 'Kiwi Maru', 'Yusei Magic', 'DotGothic16', 
+                'Dela Gothic One', 'Mochiy Pop One', 'Potta One', 'RocknRoll One',
+                'Klee One', 'Stick', 'Rampart One', 'Train One', 'Zen Maru Gothic', 'Yomogi'
+            ];
+            let currentLang = 'ja';
+
+            // --- UI初期化 ---
+            function populateFontList() {
+                const container = document.getElementById('font-selection-list');
+                container.innerHTML = '';
+                fontList.forEach(font => {
+                    const div = document.createElement('div');
+                    div.className = 'flex items-center justify-between text-sm pb-2 mb-2 border-b border-gray-200';
+                    div.innerHTML = `
+                        <div class="flex items-center">
+                            <input type="checkbox" id="font-check-${font.replace(/\s/g, '')}" value="${font}" checked class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 save-state">
+                            <label for="font-check-${font.replace(/\s/g, '')}" class="ml-2">${font}</label>
+                        </div>
+                        <span style="font-family: '${font}', sans-serif; font-size: 22px;">Aa亜あ</span>
+                    `;
+                    container.appendChild(div);
+                });
+            }
+
+            // --- イベントリスナー ---
+            // アコーディオン
+            document.querySelectorAll('.accordion-toggle').forEach(button => {
+                button.addEventListener('click', () => {
+                    document.querySelectorAll('.accordion-content').forEach(otherContent => {
+                        if (otherContent !== document.querySelector(button.dataset.target)) {
+                            otherContent.style.maxHeight = null;
+                        }
+                    });
+                    const content = document.querySelector(button.dataset.target);
+                    content.style.maxHeight = content.style.maxHeight ? null : content.scrollHeight + "px";
+                });
+            });
+
+            // 範囲スライダーの値表示
+            const setupRangeSlider = (id) => {
+                const slider = document.getElementById(id);
+                const display = document.getElementById(`${id}-val`);
+                if(slider && display) {
+                    slider.addEventListener('input', () => display.textContent = slider.value);
+                }
+            };
+            ['font-size-min', 'font-size-max', 'character-spacing', 'line-spacing', 'position-jitter', 'rotation-angle'].forEach(setupRangeSlider);
+
+            // ファイルドロップ共通処理
+            const setupDropArea = (area, input, onFileLoad) => {
+                area.addEventListener('click', () => input.click());
+                area.addEventListener('dragover', (e) => { e.preventDefault(); area.classList.add('dragover'); });
+                area.addEventListener('dragleave', () => area.classList.remove('dragover'));
+                area.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    area.classList.remove('dragover');
+                    const file = e.dataTransfer.files[0];
+                    if (file) onFileLoad(file);
+                });
+                input.addEventListener('change', (e) => {
+                    const file = e.target.files[0];
+                    if (file) onFileLoad(file);
+                });
+            };
+            
+            // テキストファイルのドロップ
+            setupDropArea(textDropArea, textFileInput, (file) => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    originalText = e.target.result;
+                    textDropArea.querySelector('span').textContent = file.name;
+                    deleteTextBtn.classList.remove('hidden');
+                };
+                reader.readAsText(file);
+            });
+            deleteTextBtn.addEventListener('click', () => {
+                originalText = '';
+                textFileInput.value = '';
+                textDropArea.querySelector('span').innerHTML = translations[currentLang]['text-drop-area'];
+                deleteTextBtn.classList.add('hidden');
+                lastGeneratedLayout = [];
+                redrawCanvas();
+            });
+
+            // 背景画像のドロップ
+            setupDropArea(bgImageDropArea, bgImageInput, (file) => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    bgImage = new Image();
+                    bgImage.onload = () => { 
+                        bgImageDropArea.querySelector('span').textContent = file.name; 
+                        deleteBgImageBtn.classList.remove('hidden');
+                        redrawCanvas();
+                    };
+                    bgImage.src = e.target.result;
+                };
+                reader.readAsDataURL(file);
+            });
+            deleteBgImageBtn.addEventListener('click', () => {
+                bgImage = null;
+                bgImageInput.value = '';
+                bgImageDropArea.querySelector('span').textContent = translations[currentLang]['bg-image-drop-area'];
+                deleteBgImageBtn.classList.add('hidden');
+                redrawCanvas();
+            });
+            
+            // パネル切り替え
+            const panels = { settings: document.getElementById('settings-panel'), output: document.getElementById('image-output-panel'), help: document.getElementById('help-panel') };
+            const headerBtns = { output: document.getElementById('btn-image-output'), help: document.getElementById('btn-help') };
+            const switchPanel = (panelName) => {
+                Object.values(panels).forEach(p => p.classList.add('hidden'));
+                if(panels[panelName]) panels[panelName].classList.remove('hidden');
+                headerBtns.output.classList.remove('active-purple');
+                headerBtns.help.classList.remove('active-green');
+                if (panelName === 'output') headerBtns.output.classList.add('active-purple');
+                else if (panelName === 'help') headerBtns.help.classList.add('active-green');
+            };
+            headerBtns.output.addEventListener('click', () => switchPanel('output'));
+            headerBtns.help.addEventListener('click', () => switchPanel('help'));
+            document.querySelectorAll('.panel-back-btn').forEach(btn => btn.addEventListener('click', () => switchPanel('settings')));
+
+            // リアルタイム更新
+            document.querySelectorAll('.realtime-update').forEach(el => el.addEventListener('input', redrawCanvas));
+            
+            generateBtn.addEventListener('click', generateLayout);
+
+            // --- メインロジック ---
+            function generateLayout() {
+                lastGeneratedLayout = [];
+                const settings = getSettings();
+                const activeFonts = getActiveFonts();
+
+                const textToProcess = originalText.replace(/[ \t\r]/g, '').slice(0, 400);
+
+                if (textToProcess.length === 0 || activeFonts.length === 0) {
+                    redrawCanvas();
+                    return;
+                }
+                
+                // --- 1. Pre-computation pass to get character data ---
+                const precomputationCtx = document.createElement('canvas').getContext('2d');
+                const charDataList = [];
+                const shuffledFontColors = [...settings.fontColors].sort(() => 0.5 - Math.random());
+                const shuffledStrokeColors = [...settings.fontStrokeColors].sort(() => 0.5 - Math.random());
+                let fontColorIndex = 0;
+                let strokeColorIndex = 0;
+
+                for (const char of textToProcess) {
+                    if (char === '\n') {
+                        charDataList.push({ char: '\n' });
+                        continue;
+                    }
+                    const style = {
+                        fontFamily: activeFonts[Math.floor(Math.random() * activeFonts.length)],
+                        fontColor: settings.fontColorMode === 'random' ? getRandomColor() : shuffledFontColors[fontColorIndex++ % shuffledFontColors.length],
+                        fontStrokeColor: settings.fontStrokeColorMode === 'random' ? getRandomColor() : shuffledStrokeColors[strokeColorIndex++ % shuffledStrokeColors.length],
+                        fontBold: (settings.fontBoldMode === 'on') ? true : (settings.fontBoldMode === 'off') ? false : Math.random() < 0.5,
+                        fontItalic: (settings.fontItalicMode === 'on') ? true : (settings.fontItalicMode === 'off') ? false : Math.random() < 0.5,
+                        fontShadow: (settings.fontShadowMode === 'on') ? true : (settings.fontShadowMode === 'off') ? false : Math.random() < 0.5,
+                        fontStroke: (settings.fontStrokeMode === 'on') ? true : (settings.fontStrokeMode === 'off') ? false : Math.random() < 0.5,
+                    };
+                    const fontSize = Math.random() * (settings.fontSizeMax - settings.fontSizeMin) + settings.fontSizeMin;
+                    precomputationCtx.font = `${style.fontItalic ? 'italic ' : ''}${style.fontBold ? 'bold ' : ''} ${fontSize}px "${style.fontFamily}"`;
+                    
+                    const metrics = precomputationCtx.measureText(char);
+                    charDataList.push({ char, style, fontSize, width: metrics.width, height: fontSize });
+                }
+
+                // --- 2. Arrange characters into lines/columns and get dimensions ---
+                const lines = [];
+                let currentLine = [];
+                if (settings.direction === 'horizontal') {
+                    let currentLineWidth = 0;
+                    charDataList.forEach(charData => {
+                        if (charData.char === '\n') {
+                            if(currentLine.length > 0) lines.push(currentLine);
+                            currentLine = [];
+                            currentLineWidth = 0;
+                            return;
+                        }
+                        if (currentLineWidth > 0 && currentLineWidth + charData.width > settings.width) {
+                            lines.push(currentLine);
+                            currentLine = [charData];
+                            currentLineWidth = charData.width + settings.spacing;
+                        } else {
+                            currentLine.push(charData);
+                            currentLineWidth += charData.width + settings.spacing;
+                        }
+                    });
+                } else { // Vertical
+                    let currentLineHeight = 0;
+                    charDataList.forEach(charData => {
+                        if (charData.char === '\n') {
+                            if(currentLine.length > 0) lines.push(currentLine);
+                            currentLine = [];
+                            currentLineHeight = 0;
+                            return;
+                        }
+                        if (currentLineHeight > 0 && currentLineHeight + charData.height > settings.height) {
+                            lines.push(currentLine);
+                            currentLine = [charData];
+                            currentLineHeight = charData.height + settings.spacing;
+                        } else {
+                            currentLine.push(charData);
+                            currentLineHeight += charData.height + settings.spacing;
+                        }
+                    });
+                }
+                if (currentLine.length > 0) lines.push(currentLine);
+
+                // --- 3. Calculate total block dimensions ---
+                let totalWidth = 0;
+                let totalHeight = 0;
+                const lineDimensions = [];
+
+                if (settings.direction === 'horizontal') {
+                    lines.forEach(line => {
+                        const lineWidth = line.reduce((sum, c) => sum + c.width + settings.spacing, 0) - settings.spacing;
+                        const lineHeight = line.length > 0 ? Math.max(...line.map(c => c.height)) * 1.2 : 0;
+                        lineDimensions.push({ width: lineWidth, height: lineHeight });
+                    });
+                    totalWidth = Math.max(...lineDimensions.map(d => d.width));
+                    totalHeight = lineDimensions.reduce((sum, d) => sum + d.height, 0) + Math.max(0, lines.length - 1) * settings.lineSpacing;
+                } else { // Vertical
+                     lines.forEach(line => {
+                        const lineWidth = line.length > 0 ? Math.max(...line.map(c => c.width)) * 1.2 : 0;
+                        const lineHeight = line.reduce((sum, c) => sum + c.height + settings.spacing, 0) - settings.spacing;
+                        lineDimensions.push({ width: lineWidth, height: lineHeight });
+                    });
+                    totalWidth = lineDimensions.reduce((sum, d) => sum + d.width, 0) + Math.max(0, lines.length - 1) * settings.lineSpacing;
+                    totalHeight = Math.max(...lineDimensions.map(d => d.height));
+                }
+
+                // --- 4. Final positioning pass with centering ---
+                const startX = (settings.width - totalWidth) / 2;
+                const startY = (settings.height - totalHeight) / 2;
+                
+                if (settings.direction === 'horizontal') {
+                    let currentY = startY;
+                    lines.forEach((line, index) => {
+                        const { width: lineWidth, height: lineHeight } = lineDimensions[index];
+                        let currentX = startX;
+                        line.forEach(charData => {
+                            const jitterX = (Math.random() - 0.5) * 2 * settings.jitter;
+                            const jitterY = (Math.random() - 0.5) * 2 * settings.jitter;
+                            const rotation = (Math.random() - 0.5) * 2 * settings.rotation;
+                            
+                            lastGeneratedLayout.push({
+                                ...charData,
+                                x: currentX + jitterX,
+                                y: currentY + jitterY,
+                                rotation
+                            });
+                            currentX += charData.width + settings.spacing;
+                        });
+                        currentY += lineHeight + settings.lineSpacing;
+                    });
+                } else { // Vertical
+                    let currentX = startX + totalWidth;
+                    lines.forEach((line, index) => {
+                        const { width: lineWidth, height: lineHeight } = lineDimensions[index];
+                        currentX -= lineWidth; // Move left for the new column (right-to-left)
+                        let currentY = startY;
+
+                        line.forEach(charData => {
+                            const jitterX = (Math.random() - 0.5) * 2 * settings.jitter;
+                            const jitterY = (Math.random() - 0.5) * 2 * settings.jitter;
+                            const rotation = (Math.random() - 0.5) * 2 * settings.rotation;
+
+                            lastGeneratedLayout.push({
+                                ...charData,
+                                x: currentX + jitterX,
+                                y: currentY + jitterY,
+                                rotation
+                            });
+                            currentY += charData.height + settings.spacing;
+                        });
+                        if(index < lines.length - 1) currentX -= settings.lineSpacing;
+                    });
+                }
+
+                redrawCanvas();
+            }
+
+            function redrawCanvas() {
+                const settings = getSettings();
+                canvas.width = settings.width;
+                canvas.height = settings.height;
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+                ctx.fillStyle = settings.bgColor;
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                if (bgImage) {
+                    ctx.globalAlpha = 0.5; // Fixed for now, can be a setting later
+                    const w = bgImage.width;
+                    const h = bgImage.height;
+                    ctx.drawImage(bgImage, (canvas.width - w) / 2, (canvas.height - h) / 2, w, h);
+                    ctx.globalAlpha = 1.0;
+                }
+                
+                if (lastGeneratedLayout.length === 0) {
+                    ctx.font = "24px 'Noto Sans JP'";
+                    ctx.fillStyle = "#AAAAAA";
+                    ctx.textAlign = "center";
+                    ctx.textBaseline = "middle";
+                    ctx.fillText(translations[currentLang]['initial-text'], canvas.width / 2, canvas.height / 2);
+                    return;
+                }
+
+                lastGeneratedLayout.forEach(item => {
+                    const { char, style, fontSize, x, y, width, height, rotation } = item;
+                    
+                    ctx.save();
+
+                    // Translate and rotate
+                    ctx.translate(x + width / 2, y + height / 2);
+                    
+                    let finalRotation = rotation;
+                    const charsToRotate = ['ー', '…', '(', ')', '（', '）', '[', ']', '［', '］', '{', '}', '｛', '｝', '~', '～', '—', '…'];
+                    if (settings.direction === 'vertical' && charsToRotate.includes(char)) {
+                        finalRotation += 90;
+                    }
+                    ctx.rotate(finalRotation * Math.PI / 180);
+
+                    // Set styles
+                    ctx.font = `${style.fontItalic ? 'italic ' : ''}${style.fontBold ? 'bold ' : ''} ${fontSize}px "${style.fontFamily}"`;
+                    ctx.fillStyle = style.fontColor;
+                    ctx.strokeStyle = style.fontStrokeColor;
+                    ctx.lineWidth = 2;
+                    ctx.shadowColor = style.fontShadow ? 'rgba(0, 0, 0, 0.5)' : 'transparent';
+                    ctx.shadowBlur = style.fontShadow ? 5 : 0;
+                    ctx.shadowOffsetX = style.fontShadow ? 2 : 2;
+                    ctx.shadowOffsetY = style.fontShadow ? 2 : 2;
+                    ctx.textAlign = "center";
+                    ctx.textBaseline = "middle";
+                    
+                    // Draw
+                    if (style.fontStroke) ctx.strokeText(char, 0, 0);
+                    ctx.fillText(char, 0, 0);
+
+                    ctx.restore();
+                });
+            }
+
+            // --- ヘルパー関数 ---
+            function getSettings() {
+                const getColors = (type) => Array.from(document.querySelectorAll(`#${type}-pickers input[type="color"]:not(:disabled)`)).map(p => p.value);
+                return {
+                    width: parseInt(document.getElementById('canvas-width').value, 10),
+                    height: parseInt(document.getElementById('canvas-height').value, 10),
+                    bgColor: document.getElementById('bg-color').value,
+                    transparentBg: document.getElementById('transparent-bg').checked,
+                    direction: document.querySelector('input[name="layout-direction"]:checked').value,
+                    spacing: parseInt(document.getElementById('character-spacing').value, 10),
+                    lineSpacing: parseInt(document.getElementById('line-spacing').value, 10),
+                    jitter: parseInt(document.getElementById('position-jitter').value, 10),
+                    rotation: parseInt(document.getElementById('rotation-angle').value, 10),
+                    fontColorMode: document.querySelector('input[name="font-color-mode"]:checked').value,
+                    fontStrokeColorMode: document.querySelector('input[name="font-stroke-color-mode"]:checked').value,
+                    fontBoldMode: document.querySelector('input[name="font-bold-mode"]:checked').value,
+                    fontItalicMode: document.querySelector('input[name="font-italic-mode"]:checked').value,
+                    fontShadowMode: document.querySelector('input[name="font-shadow-mode"]:checked').value,
+                    fontStrokeMode: document.querySelector('input[name="font-stroke-mode"]:checked').value,
+                    fontColors: getColors('font-color').length > 0 ? getColors('font-color') : ['#000000'],
+                    fontStrokeColors: getColors('font-stroke-color').length > 0 ? getColors('font-stroke-color') : ['#FFFFFF'],
+                    fontSizeMin: parseInt(document.getElementById('font-size-min').value, 10),
+                    fontSizeMax: parseInt(document.getElementById('font-size-max').value, 10),
+                };
+            }
+            
+            function getActiveFonts() {
+                const checked = Array.from(document.querySelectorAll('#font-selection-list input:checked')).map(cb => cb.value);
+                return checked.length > 0 ? checked : ['Noto Sans JP'];
+            }
+            
+            function hslToHex(h, s, l) {
+                l /= 100;
+                const a = s * Math.min(l, 1 - l) / 100;
+                const f = n => {
+                    const k = (n + h / 30) % 12;
+                    const color = l - a * Math.max(Math.min(k - 3, 9 - k, 1), -1);
+                    return Math.round(255 * color).toString(16).padStart(2, '0');
+                };
+                return `#${f(0)}${f(8)}${f(4)}`;
+            }
+
+            function getRandomColor() {
+                const hue = Math.random() * 360;
+                const saturation = 70 + Math.random() * 30; // 70-100%
+                const lightness = 40 + Math.random() * 20; // 40-60%
+                return hslToHex(hue, saturation, lightness);
+            }
+
+            // --- ダウンロード、設定保存/読込 ---
+            downloadBtn.addEventListener('click', () => {
+                const format = document.getElementById('output-format').value;
+                const settings = getSettings();
+                const isTransparent = settings.transparentBg && format === 'png';
+
+                const exportCanvas = document.createElement('canvas');
+                const exportCtx = exportCanvas.getContext('2d');
+                
+                exportCanvas.width = settings.width;
+                exportCanvas.height = settings.height;
+
+                if (!isTransparent) {
+                    exportCtx.fillStyle = settings.bgColor;
+                    exportCtx.fillRect(0, 0, exportCanvas.width, exportCanvas.height);
+                }
+
+                if (bgImage) {
+                    exportCtx.drawImage(bgImage, (exportCanvas.width - bgImage.width) / 2, (exportCanvas.height - bgImage.height) / 2);
+                }
+
+                lastGeneratedLayout.forEach(item => {
+                    const { char, style, fontSize, x, y, width, height, rotation } = item;
+                    exportCtx.save();
+                    exportCtx.translate(x + width / 2, y + height / 2);
+                    
+                    let finalRotation = rotation;
+                    const charsToRotate = ['ー', '…', '(', ')', '（', '）', '[', ']', '［', '］', '{', '}', '｛', '｝', '~', '～', '—', '…'];
+                    if (settings.direction === 'vertical' && charsToRotate.includes(char)) {
+                        finalRotation += 90;
+                    }
+                    exportCtx.rotate(finalRotation * Math.PI / 180);
+
+                    exportCtx.font = `${style.fontItalic ? 'italic ' : ''}${style.fontBold ? 'bold ' : ''} ${fontSize}px "${style.fontFamily}"`;
+                    exportCtx.fillStyle = style.fontColor;
+                    exportCtx.strokeStyle = style.fontStrokeColor;
+                    exportCtx.lineWidth = 2;
+                    exportCtx.shadowColor = style.fontShadow ? 'rgba(0, 0, 0, 0.5)' : 'transparent';
+                    exportCtx.shadowBlur = style.fontShadow ? 5 : 0;
+                    exportCtx.shadowOffsetX = style.fontShadow ? 2 : 2;
+                    exportCtx.shadowOffsetY = style.fontShadow ? 2 : 2;
+                    exportCtx.textAlign = "center";
+                    exportCtx.textBaseline = "middle";
+                    if (style.fontStroke) exportCtx.strokeText(char, 0, 0);
+                    exportCtx.fillText(char, 0, 0);
+                    exportCtx.restore();
+                });
+
+                const link = document.createElement('a');
+                link.download = `ransom-note-art.${format}`;
+                link.href = exportCanvas.toDataURL(`image/${format}`, 1.0);
+                link.click();
+            });
+
+            // カラーピッカーUIの管理
+            function setupColorPickers(type) {
+                const countInput = document.getElementById(`${type}-count`);
+                const container = document.getElementById(`${type}-pickers`);
+                const modeRadios = document.querySelectorAll(`input[name="${type}-mode"]`);
+                const defaultColors = type === 'font-color' 
+                    ? ['#000000', '#FF0000', '#0000FF', '#008000', '#FFFF00', '#800080', '#00FFFF'] 
+                    : ['#FFFFFF', '#000000', '#FF0000', '#0000FF', '#008000', '#800080', '#00FFFF'];
+
+                container.innerHTML = '';
+                for (let i = 0; i < 7; i++) {
+                    const wrapper = document.createElement('div');
+                    wrapper.className = 'color-picker-wrapper';
+                    const colorInput = document.createElement('input');
+                    colorInput.type = 'color';
+                    colorInput.value = defaultColors[i] || defaultColors[0];
+                    colorInput.classList.add('save-state');
+                    colorInput.id = `${type}-picker-${i}`;
+                    wrapper.appendChild(colorInput);
+                    container.appendChild(wrapper);
+                }
+
+                function updatePickerStates() {
+                    const isSpecify = document.querySelector(`input[name="${type}-mode"]:checked`).value === 'specify';
+                    const count = parseInt(countInput.value, 10);
+                    countInput.style.display = isSpecify ? 'inline-block' : 'none';
+                    container.querySelectorAll('.color-picker-wrapper').forEach((wrapper, i) => {
+                        const picker = wrapper.querySelector('input[type="color"]');
+                        const isDisabled = !isSpecify || i >= count;
+                        picker.disabled = isDisabled;
+                        wrapper.classList.toggle('is-disabled', isDisabled);
+                    });
+                }
+                countInput.addEventListener('input', updatePickerStates);
+                modeRadios.forEach(radio => radio.addEventListener('change', updatePickerStates));
+                updatePickerStates();
+            }
+            
+            // 設定の保存/読込
+            function getSettingsToSave() {
+                const settings = {};
+                document.querySelectorAll('.save-state').forEach(el => {
+                    const key = el.id || el.name;
+                    if (el.type === 'radio') {
+                        if (el.checked) settings[key] = el.value;
+                    } else if (el.type === 'checkbox') {
+                        settings[key] = el.checked;
+                    } else {
+                        settings[key] = el.value;
+                    }
+                });
+                return settings;
+            }
+            
+            function applySettings(settings) {
+                 Object.keys(settings).forEach(key => {
+                    const el = document.getElementById(key);
+                    if (el) {
+                        if (el.type === 'checkbox') el.checked = settings[key];
+                        else el.value = settings[key];
+                        if (el.type === 'range') el.dispatchEvent(new Event('input'));
+                    } else {
+                        const radioGroup = document.querySelectorAll(`input[name="${key}"]`);
+                        if (radioGroup.length > 0) {
+                            radioGroup.forEach(radio => radio.checked = radio.value === settings[key]);
+                        }
+                    }
+                });
+                document.querySelectorAll('input[name="font-color-mode"], input[name="font-stroke-color-mode"]').forEach(r => {
+                    r.dispatchEvent(new Event('change'));
+                    const countInput = document.getElementById(r.name.replace('-mode', '-count'));
+                    if (countInput) countInput.dispatchEvent(new Event('input'));
+                });
+                redrawCanvas();
+            }
+
+            saveSettingsBtn.addEventListener('click', () => {
+                const settings = getSettingsToSave();
+                const blob = new Blob([JSON.stringify(settings, null, 2)], { type: 'application/json' });
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(blob);
+                a.download = 'ransom-note-settings.json';
+                a.click();
+                URL.revokeObjectURL(a.href);
+            });
+
+            loadSettingsBtn.addEventListener('click', () => settingsFileInput.click());
+            settingsFileInput.addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (re) => {
+                    try {
+                        applySettings(JSON.parse(re.target.result));
+                    } catch (err) { console.error("Error parsing settings file:", err); }
+                };
+                reader.readAsText(file);
+                e.target.value = '';
+            });
+
+            // --- 初期化処理 ---
+            populateFontList();
+            setupColorPickers('font-color');
+            setupColorPickers('font-stroke-color');
+            
+            currentLang = 'ja';
+            const data = translations[currentLang];
+            document.querySelectorAll('[data-lang]').forEach(el => el.textContent = data[el.dataset.lang] || el.textContent);
+            document.querySelectorAll('[data-lang-html]').forEach(el => el.innerHTML = data[el.dataset.langHtml] || el.innerHTML);
+
+            redrawCanvas();
+            updateFullscreenButton();
+
+            // フォント全選択/全解除
+            fontSelectAllBtn.addEventListener('click', () => document.querySelectorAll('#font-selection-list input').forEach(cb => cb.checked = true));
+            fontDeselectAllBtn.addEventListener('click', () => document.querySelectorAll('#font-selection-list input').forEach(cb => cb.checked = false));
+
+            // 全画面表示
+            fullscreenBtn.addEventListener('click', toggleFullscreen);
+            document.addEventListener('fullscreenchange', updateFullscreenButton);
+        });
+    </script>
+</body>
+</html>
+
